@@ -58,6 +58,7 @@
     <div id="recognized-text">Esperando reconocimiento de voz...</div>
     <script>
         let socket;
+        let reconnectionAttempts = 0;
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'es-ES';
         recognition.interimResults = false;
@@ -68,6 +69,7 @@
 
             socket.onopen = function() {
                 console.log('Conectado al servidor WebSocket');
+                reconnectionAttempts = 0; // Resetear intentos cuando se conecta
                 keepConnectionAlive();
             };
 
@@ -76,21 +78,24 @@
             };
 
             socket.onclose = function() {
-                console.log('Conexión cerrada, intentando reconectar...');
-                setTimeout(connectWebSocket, 1000);
+                let timeout = Math.min(5000, (1000 * Math.pow(2, reconnectionAttempts))); // Exponencial hasta 5s
+                console.log(`Conexión cerrada, intentando reconectar en ${timeout / 1000} segundos...`);
+                setTimeout(connectWebSocket, timeout);
+                reconnectionAttempts++;
             };
 
             socket.onerror = function(event) {
                 console.error('Error en la conexión WebSocket:', event);
+                socket.close();
             };
         }
 
         function keepConnectionAlive() {
             setInterval(() => {
                 if (socket.readyState === WebSocket.OPEN) {
-                    socket.send(' ');
+                    socket.send('ping');
                 }
-            }, 5000);
+            }, 3000);
         }
 
         recognition.onresult = (event) => {
@@ -107,7 +112,6 @@
 
         recognition.onerror = (event) => {
             console.error('Error en el reconocimiento de voz:', event.error);
-            recognition.stop();
             setTimeout(() => recognition.start(), 1000);
         };
 
