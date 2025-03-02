@@ -28,23 +28,97 @@
         .highlight {
             color: #03DAC6;
         }
+        #recognized-text {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #BB86FC;
+            background-color: #1E1E1E;
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #03DAC6;
+        }
     </style>
 </head>
 <body>
     <h1>Esta página es necesaria tenerla abierta para poder usar el reconocimiento de voz, comandos disponibles:</h1>
     <ul>
         <li><span class="highlight">Activar el asistente de voz:</span> Alexa | Ok Google | Siri | Copilot.</li>
-      <li><span class="highlight">Volver al menú principal:</span> Menú principal.</li>
+        <li><span class="highlight">Volver al menú principal:</span> Menú principal.</li>
         <li><span class="highlight">Encender luz de taller:</span> Encender luz | Activar Luz.</li>
         <li><span class="highlight">Apagar luz de taller:</span> Apagar luz | Desactivar luz.</li>
-      <li><span class="highlight">Encender luz de mesa:</span> Encender mesa | Activar mesa.</li>
-      <li><span class="highlight">Apagar luz de mesa:</span> Apagar mesa | Desactivar mesa.</li>
-      <li><span class="highlight">Encender fuente exterior:</span> Encender fuente | Activar fuente.</li>
-      <li><span class="highlight">Apagar fuente exterior:</span> Apagar fuente | Desactivar fuente.</li>
-      <li><span class="highlight">Encender modo altavoces Bluetooth:</span> Encender Bluetooth | Activar Bluetooth.</li>
-      <li><span class="highlight">Apagar modo altavoces Bluetooth:</span> Apagar Bluetooth | Desactivar Bluetooth.</li>
-      <li><span class="highlight">Apagar la pantalla:</span> Apagar pantalla.</li>
+        <li><span class="highlight">Encender luz de mesa:</span> Encender mesa | Activar mesa.</li>
+        <li><span class="highlight">Apagar luz de mesa:</span> Apagar mesa | Desactivar mesa.</li>
+        <li><span class="highlight">Encender fuente exterior:</span> Encender fuente | Activar fuente.</li>
+        <li><span class="highlight">Apagar fuente exterior:</span> Apagar fuente | Desactivar fuente.</li>
+        <li><span class="highlight">Encender modo altavoces Bluetooth:</span> Encender Bluetooth | Activar Bluetooth.</li>
+        <li><span class="highlight">Apagar modo altavoces Bluetooth:</span> Apagar Bluetooth | Desactivar Bluetooth.</li>
+        <li><span class="highlight">Apagar la pantalla:</span> Apagar pantalla.</li>
     </ul>
-    <script src="sketch.js"></script>
+    <h2>Texto reconocido:</h2>
+    <div id="recognized-text">Esperando reconocimiento de voz...</div>
+    <script>
+        let socket;
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'es-ES';
+        recognition.interimResults = false;
+        recognition.continuous = true;
+        
+        function connectWebSocket() {
+            socket = new WebSocket('ws://localhost:49154/');
+
+            socket.onopen = function() {
+                console.log('Conectado al servidor WebSocket');
+                keepConnectionAlive();
+            };
+
+            socket.onmessage = function(event) {
+                console.log('Mensaje del servidor:', event.data);
+            };
+
+            socket.onclose = function() {
+                console.log('Conexión cerrada, intentando reconectar...');
+                setTimeout(connectWebSocket, 1000);
+            };
+
+            socket.onerror = function(event) {
+                console.error('Error en la conexión WebSocket:', event);
+            };
+        }
+
+        function keepConnectionAlive() {
+            setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(' ');
+                }
+            }, 5000);
+        }
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[event.resultIndex][0].transcript;
+            console.log('Reconocido:', transcript);
+            document.getElementById('recognized-text').textContent = transcript;
+            
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(transcript);
+            } else {
+                console.warn('No se pudo enviar el mensaje, WebSocket no está conectado');
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Error en el reconocimiento de voz:', event.error);
+            recognition.stop();
+            setTimeout(() => recognition.start(), 1000);
+        };
+
+        recognition.onend = () => {
+            console.log('Reconocimiento de voz finalizado, reiniciando...');
+            recognition.start();
+        };
+
+        recognition.start();
+        connectWebSocket();
+    </script>
 </body>
 </html>
+
